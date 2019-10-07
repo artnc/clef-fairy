@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Runs the given command in Docker
+
+set -eu
+
+readonly REPO_MOUNT='/clef-fairy'
+
+case "${1:-}" in
+  format)
+    cmd=(black "${REPO_MOUNT}")
+    ;;
+  *)
+    cmd=(python3 "${REPO_MOUNT}/main.py")
+    for pdf in "$@"; do
+      cmd+=("$(cd "$(dirname "${pdf}")"; pwd)/$(basename "${pdf}")")
+    done
+    ;;
+esac
+
+# `docker run` options
+docker_options=(
+  --rm
+  -v "${HOME}:${HOME}"
+  # https://stackoverflow.com/a/246128
+  -v "$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd):${REPO_MOUNT}"
+)
+
+# Build Docker image
+build_start_time="$(date +%s)"
+image_id="$(docker build -q -t artnc/clef-fairy .)"
+elapsed_seconds="$(($(date +%s) - build_start_time))"
+if [[ "${elapsed_seconds}" -gt 2 ]]; then
+  echo "Rebuilt Docker image in ${elapsed_seconds} seconds"
+fi
+
+# Run provided command in container
+docker run "${docker_options[@]}" "${image_id}" "${cmd[@]}"
